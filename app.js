@@ -35,89 +35,55 @@ $('saveVendorBtn').onclick=()=>{
 };
 $('vendorSelect').onchange=()=>{updateVendorDetail();generateMail();};
 
-function normalizeDateText(s){
-  s=s.replace(/[年月]/g,'/').replace(/日/g,'').replace(/\s+/g,' ');
-  const reiwa=s.match(/令和\s*(\d+)\s*[\/.-]\s*(\d+)\s*[\/.-]\s*(\d+)/);
-  if(reiwa){ const y=2018+Number(reiwa[1]); return `${y}-${String(reiwa[2]).padStart(2,'0')}-${String(reiwa[3]).padStart(2,'0')}`; }
-  const m=s.match(/(20\d{2})\s*[\/.-]\s*(\d{1,2})\s*[\/.-]\s*(\d{1,2})/);
+// 有坂不動産「貸室解約申出書」専用OCR
+const FORM_ZONES = [
+  {key:'property',label:'貸室名',x:.315,y:.315,w:.465,h:.042},
+  {key:'room',label:'号室',x:.785,y:.315,w:.105,h:.042},
+  {key:'cancelDate',label:'解約予定日',x:.315,y:.355,w:.570,h:.045},
+  {key:'phone',label:'TEL',x:.555,y:.438,w:.335,h:.050},
+  {key:'tenantName',label:'氏名',x:.445,y:.845,w:.445,h:.055}
+];
+
+function cleanText(t){return (t||'').replace(/[|｜]/g,'').replace(/[ \t　]+/g,' ').replace(/\n+/g,' ').trim()}
+function parseDate(t){
+  t=cleanText(t);
+  let m=t.match(/令和\s*(\d+)\D+(\d{1,2})\D+(\d{1,2})/);
+  if(m)return `${2018+Number(m[1])}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+  m=t.match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
   if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
   return '';
 }
-function pickLine(text, keys){
-  const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  for(const line of lines){
-    if(keys.some(k=>line.includes(k))){
-      const parts=line.split(/[：:]/);
-      if(parts.length>1) return parts.slice(1).join(':').trim();
-      for(const k of keys){ const idx=line.indexOf(k); if(idx>=0) return line.slice(idx+k.length).replace(/^[\s　・\-]+/,'').trim(); }
-    }
+function parsePhone(t){const m=cleanText(t).match(/0\d{1,4}[^\d]?\d{1,4}[^\d]?\d{3,4}/);return m?m[0].replace(/[^\d]/g,''):''}
+function detectPageBottom(bitmap){
+  const c=document.createElement('canvas'); const w=180,h=Math.max(1,Math.round(bitmap.height*w/bitmap.width)); c.width=w;c.height=h;
+  const ctx=c.getContext('2d');ctx.drawImage(bitmap,0,0,w,h);const d=ctx.getImageData(0,0,w,h).data;
+  const rowMean=y=>{let sum=0;for(let x=0;x<w;x++){const i=(y*w+x)*4;sum+=(d[i]+d[i+1]+d[i+2])/3}return sum/w};
+  let bottom=h-1, darkRun=0;
+  for(let y=Math.round(h*.55);y<h;y++){ if(rowMean(y)<145) darkRun++; else darkRun=0; if(darkRun>=6){bottom=y-5;break;} }
+  return Math.max(Math.round(h*.65),bottom)/h;
+}
+function cropZone(bitmap,z,pageBottom){
+  const sx=Math.round(bitmap.width*z.x), sy=Math.round(bitmap.height*(z.y*pageBottom));
+  const sw=Math.round(bitmap.width*z.w), sh=Math.round(bitmap.height*(z.h*pageBottom));
+  const c=document.createElement('canvas');c.width=Math.max(1,sw*3);c.height=Math.max(1,sh*3);
+  const ctx=c.getContext('2d');ctx.drawImage(bitmap,sx,sy,sw,sh,0,0,c.width,c.height);
+  const im=ctx.getImageData(0,0,c.width,c.height),d=im.data;
+  for(let i=0;i<d.length;i+=4){const g=.299*d[i]+.587*d[i+1]+.114*d[i+2];const v=g<180?Math.max(0,g*.68):255;d[i]=d[i+1]=d[i+2]=v}ctx.putImageData(im,0,0);return c;
+}
+function zoneValue(z,raw){let t=cleanText(raw);if(z.key==='cancelDate')return parseDate(t);if(z.key==='phone')return parsePhone(t);if(z.key==='room')return t.replace(/号室/g,'').replace(/[^0-9A-Za-z-]/g,'');return t.replace(/^(貸室名|氏名|TEL|号室)[:：\s]*/,'').trim()}
+async function processTemplate(file){
+  $('ocrPreview').innerHTML='';$('zonePreview').innerHTML='';$('ocrStatus').textContent='書類を読み込んでいます…';
+  const bitmap=await createImageBitmap(file), img=document.createElement('img');img.src=URL.createObjectURL(file);$('ocrPreview').appendChild(img);
+  const pageBottom=detectPageBottom(bitmap); const all=[];
+  for(let i=0;i<FORM_ZONES.length;i++){
+    const z=FORM_ZONES[i],canvas=cropZone(bitmap,z,pageBottom),card=document.createElement('div');card.className='zone-card';card.innerHTML=`<b>${z.label}</b>`;card.appendChild(canvas);const result=document.createElement('div');result.className='zone-result';result.textContent='読取中…';card.appendChild(result);$('zonePreview').appendChild(card);
+    $('ocrStatus').textContent=`${z.label}を読取中… ${i+1}/${FORM_ZONES.length}`;
+    try{const {data:{text}}=await Tesseract.recognize(canvas,z.key==='cancelDate'||z.key==='phone'?'eng':'jpn+eng',{logger:()=>{}});const v=zoneValue(z,text);result.textContent=v||'未認識';if(v)$(z.key).value=v;all.push(`${z.label}: ${cleanText(text)}`)}catch(e){console.error(e);result.textContent='読取失敗'}
   }
-  return '';
+  $('ocrText').value=all.join('\n');generateMail();$('ocrStatus').textContent='専用OCRが完了しました。必ず各項目を確認してください。';
 }
-function findPhone(text){
-  const m=text.match(/0\d{1,4}[-ー−\s]?\d{1,4}[-ー−\s]?\d{3,4}/);
-  return m?m[0].replace(/[ー−\s]/g,'-'):'';
-}
-function findDateNear(text, keys){
-  const lines=text.split(/\r?\n/);
-  for(const line of lines){
-    if(keys.some(k=>line.includes(k))){
-      const d=normalizeDateText(line);
-      if(d)return d;
-      const md=line.match(/(\d{1,2})\s*[月\/]\s*(\d{1,2})/);
-      if(md){
-        const y=new Date().getFullYear();
-        return `${y}-${String(md[1]).padStart(2,'0')}-${String(md[2]).padStart(2,'0')}`;
-      }
-    }
-  }
-  return '';
-}
-function findDateTimeNear(text, keys){
-  const d=findDateNear(text,keys);
-  if(!d)return '';
-  const lines=text.split(/\r?\n/);
-  let hour='10', min='00';
-  for(const line of lines){
-    if(keys.some(k=>line.includes(k))){
-      const tm=line.match(/(\d{1,2})\s*[:時]\s*(\d{1,2})?/);
-      if(tm){hour=String(tm[1]).padStart(2,'0'); min=String(tm[2]||0).padStart(2,'0');}
-    }
-  }
-  return `${d}T${hour}:${min}`;
-}
-function extractFields(text){
-  const set=(id,val)=>{ if(val && !$(id).value) $(id).value=val; };
-  set('property',pickLine(text,['物件名','建物名','マンション名']));
-  set('room',pickLine(text,['号室','部屋番号']));
-  set('tenantName',pickLine(text,['借主名','契約者名','賃借人名','契約者']));
-  set('residentName',pickLine(text,['入居者名','入居者']));
-  set('phone',findPhone(text));
-  set('attendee',pickLine(text,['立会者','立ち会い者','立会い者']));
-  set('inspectionDate',findDateTimeNear(text,['立会希望日','立会希望日時','立ち会い希望日','立会日']));
-  set('moveoutDate',findDateNear(text,['退去予定日','退去日','明渡予定日']));
-  set('cancelDate',findDateNear(text,['解約予定日','解約日','契約終了日']));
-  generateMail();
-}
-$('reparseBtn').onclick=()=>extractFields($('ocrText').value);
-
-$('ocrInput').onchange=async e=>{
-  const file=e.target.files[0]; if(!file)return;
-  $('ocrPreview').innerHTML='';
-  const img=document.createElement('img'); img.src=URL.createObjectURL(file); $('ocrPreview').appendChild(img);
-  $('ocrStatus').textContent='OCR処理中です…';
-  try{
-    const { data:{ text } } = await Tesseract.recognize(file,'jpn+eng',{
-      logger:m=>{ if(m.status==='recognizing text') $('ocrStatus').textContent=`OCR処理中… ${Math.round((m.progress||0)*100)}%`; }
-    });
-    $('ocrText').value=text;
-    extractFields(text);
-    $('ocrStatus').textContent='OCRが完了しました。読取結果を確認・修正してください。';
-  }catch(err){
-    console.error(err);
-    $('ocrStatus').textContent='OCRに失敗しました。画像を撮り直すか、OCR全文欄へ手入力してください。';
-  }
-};
+$('reparseBtn').onclick=()=>{const t=$('ocrText').value;const ph=parsePhone(t),dt=parseDate(t);if(ph&&!$('phone').value)$('phone').value=ph;if(dt&&!$('cancelDate').value)$('cancelDate').value=dt;generateMail()};
+$('ocrInput').onchange=async e=>{const file=e.target.files[0];if(!file)return;try{await processTemplate(file)}catch(err){console.error(err);$('ocrStatus').textContent='OCRに失敗しました。用紙全体が入るよう、できるだけ正面から撮影してください。'}};
 
 ['attachCamera','attachImages','attachPdf'].forEach(id=>{
   $(id).onchange=e=>{ [...e.target.files].forEach(addAttachment); e.target.value=''; };

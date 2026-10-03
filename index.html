@@ -20,13 +20,15 @@
   <main class="container">
     <section class="hero card">
       <div class="step-badge">STEP 1</div>
-      <h2>解約通知を撮影・読取</h2>
-      <p>解約通知書を撮影すると、OCRで必要項目を自動入力します。</p>
+      <h2>解約申出書を撮影・読取</h2>
+      <p>有坂不動産の「貸室解約申出書」専用モードで、記入欄を個別に読み取ります。</p>
+      <div class="template-note"><b>自動読取：</b>貸室名・号室・解約予定日・TEL・氏名<br><b>追加入力：</b>入居者名・立会者・立会希望日・退去予定日</div>
       <label class="primary big">
         📷 解約通知を撮影 / 選択
         <input id="ocrInput" type="file" accept="image/*" capture="environment" hidden>
       </label>
       <div id="ocrPreview" class="preview-grid"></div>
+      <div id="zonePreview" class="zone-preview"></div>
       <div class="status" id="ocrStatus"></div>
     </section>
 
