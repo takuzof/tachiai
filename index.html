@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f4c81">
+  <title>退去立会依頼</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <div class="eyebrow">MOVE-OUT REQUEST</div>
+      <h1>退去立会依頼</h1>
+    </div>
+    <button class="ghost" id="installBtn" hidden>ホーム画面追加</button>
+  </header>
+
+  <main class="container">
+    <section class="hero card">
+      <div class="step-badge">STEP 1</div>
+      <h2>解約通知を撮影・読取</h2>
+      <p>解約通知書を撮影すると、OCRで必要項目を自動入力します。</p>
+      <label class="primary big">
+        📷 解約通知を撮影 / 選択
+        <input id="ocrInput" type="file" accept="image/*" capture="environment" hidden>
+      </label>
+      <div id="ocrPreview" class="preview-grid"></div>
+      <div class="status" id="ocrStatus"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <div class="step-badge">STEP 2</div>
+          <h2>読取結果を確認</h2>
+        </div>
+        <button class="ghost" id="clearFormBtn">入力をクリア</button>
+      </div>
+
+      <div class="form-grid">
+        <label>物件名<input id="property" autocomplete="off"></label>
+        <label>号室<input id="room" autocomplete="off"></label>
+        <label>借主名<input id="tenantName" autocomplete="off"></label>
+        <label>入居者名<input id="residentName" autocomplete="off"></label>
+        <label>電話番号<input id="phone" inputmode="tel" autocomplete="off"></label>
+        <label>立会者<input id="attendee" autocomplete="off"></label>
+        <label>立会希望日<input id="inspectionDate" type="datetime-local"></label>
+        <label>退去予定日<input id="moveoutDate" type="date"></label>
+        <label>解約予定日<input id="cancelDate" type="date"></label>
+      </div>
+
+      <details>
+        <summary>OCR全文を確認</summary>
+        <textarea id="ocrText" rows="8" placeholder="OCR結果がここに表示されます。手修正も可能です。"></textarea>
+        <button class="secondary" id="reparseBtn">この文章から再抽出</button>
+      </details>
+    </section>
+
+    <section class="card">
+      <div class="step-badge">STEP 3</div>
+      <h2>添付資料を追加</h2>
+      <p>業者へ送る写真や資料を追加します。複数枚追加できます。</p>
+      <div class="button-row">
+        <label class="secondary">
+          📷 写真を撮る
+          <input id="attachCamera" type="file" accept="image/*" capture="environment" multiple hidden>
+        </label>
+        <label class="secondary">
+          🖼 写真を選ぶ
+          <input id="attachImages" type="file" accept="image/*" multiple hidden>
+        </label>
+        <label class="secondary">
+          📄 PDFを選ぶ
+          <input id="attachPdf" type="file" accept="application/pdf" multiple hidden>
+        </label>
+      </div>
+      <div id="attachmentList" class="attachment-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <div class="step-badge">STEP 4</div>
+          <h2>依頼先業者</h2>
+        </div>
+        <button class="ghost" id="manageVendorsBtn">業者管理</button>
+      </div>
+      <select id="vendorSelect"></select>
+      <div id="vendorDetail" class="vendor-detail"></div>
+    </section>
+
+    <section class="card">
+      <div class="step-badge">STEP 5</div>
+      <h2>メール内容</h2>
+      <label>件名<input id="mailSubject"></label>
+      <label>本文<textarea id="mailBody" rows="16"></textarea></label>
+      <div class="button-row">
+        <button class="secondary" id="generateMailBtn">内容を更新</button>
+        <button class="secondary" id="copyMailBtn">本文をコピー</button>
+      </div>
+    </section>
+
+    <section class="card accent">
+      <div class="step-badge">STEP 6</div>
+      <h2>PDFを作成してメールへ</h2>
+      <p>添付資料を1つのPDFにまとめ、iPhoneの共有画面を開きます。共有先で「メール」を選んで送信してください。</p>
+      <button class="primary big" id="shareBtn">📨 PDFを作成して共有</button>
+      <button class="secondary wide" id="downloadPdfBtn">PDFだけ保存</button>
+      <div class="status" id="shareStatus"></div>
+    </section>
+  </main>
+
+  <dialog id="vendorDialog">
+    <form method="dialog" class="dialog-card">
+      <h2>業者管理</h2>
+      <label>会社名<input id="vendorName"></label>
+      <label>担当者名<input id="vendorPerson"></label>
+      <label>メールアドレス<input id="vendorEmail" type="email"></label>
+      <div class="button-row">
+        <button type="button" class="secondary" id="saveVendorBtn">登録</button>
+        <button value="close" class="ghost">閉じる</button>
+      </div>
+      <div id="vendorList" class="vendor-list"></div>
+    </form>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
