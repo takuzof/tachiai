@@ -14,7 +14,10 @@
       <div class="eyebrow">MOVE-OUT REQUEST</div>
       <h1>退去立会依頼</h1>
     </div>
-    <button class="ghost" id="installBtn" hidden>ホーム画面追加</button>
+    <div class="header-actions">
+      <button class="ghost" id="masterBtn">⚙ マスター管理</button>
+      <button class="ghost" id="installBtn" hidden>ホーム画面追加</button>
+    </div>
   </header>
 
   <main class="container">
@@ -42,7 +45,7 @@
       </div>
 
       <div class="form-grid">
-        <label>物件名<input id="property" autocomplete="off"></label>
+        <label>物件名<input id="property" list="propertyOptions" autocomplete="off"><datalist id="propertyOptions"></datalist></label>
         <label>号室<input id="room" autocomplete="off"></label>
         <label>借主名<input id="tenantName" autocomplete="off"></label>
         <label>入居者名<input id="residentName" autocomplete="off"></label>
@@ -114,17 +117,43 @@
     </section>
   </main>
 
-  <dialog id="vendorDialog">
-    <form method="dialog" class="dialog-card">
-      <h2>業者管理</h2>
-      <label>会社名<input id="vendorName"></label>
-      <label>担当者名<input id="vendorPerson"></label>
-      <label>メールアドレス<input id="vendorEmail" type="email"></label>
-      <div class="button-row">
-        <button type="button" class="secondary" id="saveVendorBtn">登録</button>
+  <dialog id="masterDialog">
+    <form method="dialog" class="dialog-card master-dialog-card">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">HANDOFF MASTER</div>
+          <h2>GitHub共通マスター</h2>
+        </div>
         <button value="close" class="ghost">閉じる</button>
       </div>
-      <div id="vendorList" class="vendor-list"></div>
+
+      <div class="master-tabs">
+        <button type="button" class="master-tab active" data-master-tab="property">物件マスター</button>
+        <button type="button" class="master-tab" data-master-tab="vendor">立会業者マスター</button>
+      </div>
+
+      <section class="master-panel active" id="propertyMasterPanel">
+        <h3>物件マスター</h3>
+        <p class="master-note">GitHub上の <code>data/masters.json</code> を全端末で共通利用します。</p>
+        <div class="button-row">
+          <button type="button" class="primary" id="reloadMastersBtn1">最新マスターを再読込</button>
+        </div>
+        <div id="propertyMasterList" class="master-list"></div>
+      </section>
+
+      <section class="master-panel" id="vendorMasterPanel">
+        <h3>立会業者マスター</h3>
+        <p class="master-note">GitHub上の <code>data/masters.json</code> を全端末で共通利用します。</p>
+        <div class="button-row">
+          <button type="button" class="primary" id="reloadMastersBtn2">最新マスターを再読込</button>
+        </div>
+        <div id="vendorList" class="vendor-list"></div>
+      </section>
+
+      <div class="master-backup">
+        <h3>マスターを変更するには</h3>
+        <p>GitHubリポジトリの <code>data/masters.json</code> を編集して保存（Commit）してください。保存後、この画面の「最新マスターを再読込」を押すと反映されます。</p>
+      </div>
     </form>
   </dialog>
 

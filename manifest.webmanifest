@@ -1,6 +1,6 @@
 {
-  "name": "退去立会依頼",
-  "short_name": "退去立会",
+  "name": "HANDOFF - 退去立会依頼",
+  "short_name": "HANDOFF",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#f4f8fb",
