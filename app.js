@@ -7,6 +7,7 @@ const state = {
 };
 let editingPropertyIndex = null;
 let editingVendorIndex = null;
+let pendingPropertyImport = [];
 
 function saveVendors(){
   localStorage.setItem('handoffVendors', JSON.stringify(state.vendors));
@@ -98,6 +99,133 @@ $('importMastersInput').onchange=async e=>{
     alert('マスターを復元しました');
   }catch(err){alert('バックアップファイルを読み込めませんでした');}
   e.target.value='';
+};
+
+
+function normalizeHeader(s){
+  return String(s ?? '').replace(/\s+/g,'').replace(/[　]/g,'').toLowerCase();
+}
+function detectColumn(headers, candidates){
+  const normalized=headers.map(normalizeHeader);
+  for(const c of candidates){
+    const idx=normalized.indexOf(normalizeHeader(c));
+    if(idx>=0) return headers[idx];
+  }
+  return null;
+}
+function rowsToProperties(rows){
+  if(!Array.isArray(rows) || !rows.length) return [];
+  const headers=Object.keys(rows[0]||{});
+  const nameCol=detectColumn(headers,['物件名','建物名','物件名称','建物名称','マンション名','アパート名','名称','name']);
+  const addrCol=detectColumn(headers,['住所','所在地','物件住所','建物住所','address']);
+  if(!nameCol){
+    throw new Error('「物件名」または「建物名」の列が見つかりません');
+  }
+  const seen=new Set();
+  const props=[];
+  for(const row of rows){
+    const name=String(row[nameCol] ?? '').trim();
+    if(!name) continue;
+    const address=addrCol ? String(row[addrCol] ?? '').trim() : '';
+    const key=name.replace(/\s+/g,'').toLowerCase();
+    if(seen.has(key)) continue;
+    seen.add(key);
+    props.push({name,address});
+  }
+  return props;
+}
+function parseCsvText(text){
+  // Excel等から出力した一般的なCSVを簡易解析。引用符内カンマに対応。
+  const rows=[]; let row=[], field='', quote=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(ch==='"'){
+      if(quote && text[i+1]==='"'){field+='"';i++;}
+      else quote=!quote;
+    }else if(ch===',' && !quote){row.push(field);field='';}
+    else if((ch==='\n' || ch==='\r') && !quote){
+      if(ch==='\r' && text[i+1]==='\n') i++;
+      row.push(field); field='';
+      if(row.some(v=>String(v).trim()!=='')) rows.push(row);
+      row=[];
+    }else field+=ch;
+  }
+  if(field || row.length){row.push(field); if(row.some(v=>String(v).trim()!=='')) rows.push(row);}
+  if(!rows.length) return [];
+  const headers=rows[0].map(v=>String(v).trim());
+  return rows.slice(1).map(r=>{
+    const o={}; headers.forEach((h,i)=>o[h]=r[i]??''); return o;
+  });
+}
+async function readPropertyImportFile(file){
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(ext==='csv'){
+    const buf=await file.arrayBuffer();
+    let text;
+    // UTF-8 first; fallback to Shift_JIS for common Japanese CSVs.
+    try{
+      text=new TextDecoder('utf-8',{fatal:true}).decode(buf);
+    }catch(e){
+      text=new TextDecoder('shift_jis').decode(buf);
+    }
+    return parseCsvText(text);
+  }
+  if(!window.XLSX) throw new Error('Excel読込ライブラリを読み込めませんでした');
+  const buf=await file.arrayBuffer();
+  const wb=XLSX.read(buf,{type:'array'});
+  const sheet=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(sheet,{defval:''});
+}
+function showPropertyImportPreview(props){
+  const box=$('propertyImportPreview');
+  if(!props.length){
+    box.hidden=true; box.innerHTML=''; $('applyPropertyImportBtn').hidden=true; return;
+  }
+  const sample=props.slice(0,8);
+  box.innerHTML=`<div class="import-summary"><b>${props.length}件</b>を読み込みました。</div>`+
+    sample.map(p=>`<div class="import-preview-row"><b>${esc(p.name)}</b><span>${esc(p.address||'住所なし')}</span></div>`).join('')+
+    (props.length>8?`<div class="small">ほか ${props.length-8}件</div>`:'');
+  box.hidden=false; $('applyPropertyImportBtn').hidden=false;
+}
+$('propertyImportFile').onchange=async e=>{
+  const file=e.target.files?.[0];
+  if(!file) return;
+  $('propertyImportStatus').textContent='読み込み中...';
+  pendingPropertyImport=[];
+  try{
+    const rows=await readPropertyImportFile(file);
+    pendingPropertyImport=rowsToProperties(rows);
+    if(!pendingPropertyImport.length) throw new Error('登録できる物件がありません');
+    $('propertyImportStatus').textContent=`${file.name} を読み込みました`;
+    showPropertyImportPreview(pendingPropertyImport);
+  }catch(err){
+    console.error(err);
+    $('propertyImportStatus').textContent=`読込エラー：${err.message||err}`;
+    showPropertyImportPreview([]);
+  }
+};
+$('applyPropertyImportBtn').onclick=()=>{
+  if(!pendingPropertyImport.length) return;
+  const mode=document.querySelector('input[name="propertyImportMode"]:checked')?.value || 'append';
+  if(mode==='replace'){
+    if(!confirm(`現在の物件マスターを削除して、${pendingPropertyImport.length}件で置き換えますか？`)) return;
+    state.properties=[...pendingPropertyImport];
+  }else{
+    const existing=new Set(state.properties.map(p=>p.name.replace(/\s+/g,'').toLowerCase()));
+    let added=0;
+    for(const p of pendingPropertyImport){
+      const key=p.name.replace(/\s+/g,'').toLowerCase();
+      if(existing.has(key)) continue;
+      state.properties.push(p); existing.add(key); added++;
+    }
+    alert(`${added}件を追加しました。重複物件は追加していません。`);
+  }
+  state.properties.sort((a,b)=>a.name.localeCompare(b.name,'ja'));
+  saveProperties(); renderProperties();
+  pendingPropertyImport=[];
+  $('propertyImportFile').value='';
+  $('propertyImportStatus').textContent='物件マスターへ登録しました';
+  showPropertyImportPreview([]);
 };
 
 // 有坂不動産「貸室解約申出書」専用OCR

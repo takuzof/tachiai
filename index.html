@@ -140,6 +140,21 @@
         <div class="button-row">
           <button type="button" class="primary" id="savePropertyBtn">物件を登録</button><button type="button" class="secondary" id="cancelPropertyEditBtn" hidden>編集をキャンセル</button>
         </div>
+        <div class="property-import-box">
+          <h3>Excel / CSVから一括読込</h3>
+          <p class="master-help">ファイルはこの端末内で読み取ります。GitHubや外部サーバーへアップロードしません。</p>
+          <label class="secondary file-pick-btn">
+            Excel / CSVを選択
+            <input id="propertyImportFile" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
+          </label>
+          <div id="propertyImportStatus" class="import-status"></div>
+          <div id="propertyImportPreview" class="import-preview" hidden></div>
+          <div class="import-mode">
+            <label><input type="radio" name="propertyImportMode" value="append" checked> 既存マスターへ追加</label>
+            <label><input type="radio" name="propertyImportMode" value="replace"> 全置換</label>
+          </div>
+          <button type="button" class="primary" id="applyPropertyImportBtn" hidden>この内容を物件マスターへ登録</button>
+        </div>
         <div id="propertyMasterList" class="master-list"></div>
       </section>
 
@@ -167,6 +182,7 @@
   </dialog>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="app.js"></script>
 </body>
