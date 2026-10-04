@@ -2,26 +2,17 @@
 const $ = id => document.getElementById(id);
 const state = {
   attachments: [],
-  vendors: [],
-  properties: []
+  vendors: JSON.parse(localStorage.getItem('handoffVendors') || localStorage.getItem('taikyoVendors') || '[]'),
+  properties: JSON.parse(localStorage.getItem('handoffProperties') || '[]')
 };
+let editingPropertyIndex = null;
+let editingVendorIndex = null;
 
-async function loadSharedMasters(showMessage=false){
-  try{
-    const res = await fetch(`./data/masters.json?t=${Date.now()}`, {cache:'no-store'});
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    state.properties = Array.isArray(data.properties) ? data.properties : [];
-    state.vendors = Array.isArray(data.vendors) ? data.vendors : [];
-    renderProperties();
-    renderVendors();
-    generateMail();
-    if(showMessage) alert('GitHub共通マスターを再読み込みしました');
-  }catch(err){
-    console.error('masters load failed', err);
-    if(showMessage) alert('共通マスターを読み込めませんでした。通信状況または data/masters.json を確認してください。');
-  }
+function saveVendors(){
+  localStorage.setItem('handoffVendors', JSON.stringify(state.vendors));
+  localStorage.removeItem('taikyoVendors');
 }
+function saveProperties(){ localStorage.setItem('handoffProperties', JSON.stringify(state.properties)); }
 function esc(s=''){return s.replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function fmtBytes(n){ if(n<1024)return n+' B'; if(n<1048576)return (n/1024).toFixed(1)+' KB'; return (n/1048576).toFixed(1)+' MB'; }
 
@@ -30,44 +21,37 @@ function renderVendors(){
   const current=sel.value;
   sel.innerHTML='';
   if(!state.vendors.length){
-    const o=document.createElement('option');
-    o.value='';
-    o.textContent='業者マスター未登録';
-    sel.appendChild(o);
+    const o=document.createElement('option');o.value='';o.textContent='業者マスターを登録してください';sel.appendChild(o);
   }else{
-    state.vendors.forEach((v,i)=>{
-      const o=document.createElement('option');
-      o.value=i;
-      o.textContent=`${v.name}${v.person?' / '+v.person:''}`;
-      sel.appendChild(o);
-    });
+    state.vendors.forEach((v,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${v.name}${v.person?' / '+v.person:''}`;sel.appendChild(o)});
     if(current!=='' && state.vendors[+current]) sel.value=current;
   }
   updateVendorDetail();
-  $('vendorList').innerHTML=state.vendors.length ? state.vendors.map(v=>`
-    <div class="vendor-row"><div><b>${esc(v.name)}</b>
-    <div class="small">${esc(v.person||'')} ${esc(v.email||'')}</div>
-    <div class="small">${esc(v.phone||'')}</div></div></div>`).join('') :
-    '<div class="empty-master">まだ立会業者が登録されていません。</div>';
+  $('vendorList').innerHTML=state.vendors.length ? state.vendors.map((v,i)=>`
+    <div class="vendor-row"><div><b>${esc(v.name)}</b><div class="small">${esc(v.person||'')} ${esc(v.email||'')}</div><div class="small">${esc(v.phone||'')}</div></div>
+    <div class="master-row-actions"><button type="button" class="edit-master" onclick="editVendor(${i})">編集</button><button type="button" class="remove" onclick="deleteVendor(${i})">削除</button></div></div>`).join('') : '<div class="empty-master">まだ業者が登録されていません。</div>';
 }
 function updateVendorDetail(){
   const v=state.vendors[+$('vendorSelect').value]||{};
-  $('vendorDetail').innerHTML=v.name ?
-    `<b>${esc(v.name)}</b><br>${esc(v.person||'')}<br>${esc(v.email||'')}${v.phone?'<br>'+esc(v.phone):''}` :
-    'GitHub共通マスターに立会業者を登録してください。';
+  $('vendorDetail').innerHTML=v.name ? `<b>${esc(v.name)}</b><br>${esc(v.person||'')}<br>${esc(v.email||'')}${v.phone?'<br>'+esc(v.phone):''}` : 'マスター管理から立会業者を登録してください。';
 }
+window.deleteVendor=(i)=>{ if(!confirm('この業者を削除しますか？'))return; state.vendors.splice(i,1); saveVendors(); renderProperties(); renderVendors(); generateMail(); };
+
 function renderProperties(){
   const dl=$('propertyOptions');
   dl.innerHTML=state.properties.map(p=>`<option value="${esc(p.name)}">${esc(p.address||'')}</option>`).join('');
-  $('propertyMasterList').innerHTML=state.properties.length ? state.properties.map(p=>`
-    <div class="vendor-row"><div><b>${esc(p.name)}</b>
-    <div class="small">${esc(p.address||'')}</div></div></div>`).join('') :
-    '<div class="empty-master">まだ物件が登録されていません。</div>';
+  $('propertyMasterList').innerHTML=state.properties.length ? state.properties.map((p,i)=>`
+    <div class="vendor-row"><div><b>${esc(p.name)}</b><div class="small">${esc(p.address||'')}</div></div>
+    <div class="master-row-actions"><button type="button" class="edit-master" onclick="editProperty(${i})">編集</button><button type="button" class="remove" onclick="deleteProperty(${i})">削除</button></div></div>`).join('') : '<div class="empty-master">まだ物件が登録されていません。</div>';
 }
+window.deleteProperty=(i)=>{ if(!confirm('この物件を削除しますか？'))return; state.properties.splice(i,1); if(editingPropertyIndex===i) cancelPropertyEdit(); editingPropertyIndex=null; saveProperties(); renderProperties(); };
+window.editProperty=(i)=>{ const p=state.properties[i]; if(!p)return; editingPropertyIndex=i; $('masterPropertyName').value=p.name||''; $('masterPropertyAddress').value=p.address||''; $('savePropertyBtn').textContent='変更を保存'; $('cancelPropertyEditBtn').hidden=false; };
+function cancelPropertyEdit(){ editingPropertyIndex=null; $('masterPropertyName').value=''; $('masterPropertyAddress').value=''; $('savePropertyBtn').textContent='物件を登録'; $('cancelPropertyEditBtn').hidden=true; }
+$('cancelPropertyEditBtn').onclick=cancelPropertyEdit;
+
 function openMasterDialog(tab='property'){
   switchMasterTab(tab);
-  renderProperties();
-  renderVendors();
+  renderProperties(); renderVendors();
   $('masterDialog').showModal();
 }
 function switchMasterTab(tab){
@@ -78,9 +62,43 @@ function switchMasterTab(tab){
 $('masterBtn').onclick=()=>openMasterDialog('property');
 $('manageVendorsBtn').onclick=()=>openMasterDialog('vendor');
 document.querySelectorAll('.master-tab').forEach(b=>b.onclick=()=>switchMasterTab(b.dataset.masterTab));
-$('reloadMastersBtn1').onclick=()=>loadSharedMasters(true);
-$('reloadMastersBtn2').onclick=()=>loadSharedMasters(true);
+
+$('savePropertyBtn').onclick=()=>{
+  const p={name:$('masterPropertyName').value.trim(),address:$('masterPropertyAddress').value.trim()};
+  if(!p.name){alert('物件名を入力してください');return}
+  const dup=state.properties.findIndex((x,i)=>x.name===p.name && i!==editingPropertyIndex);
+  if(dup>=0){alert('同じ物件名が登録されています');return}
+  if(editingPropertyIndex===null){ state.properties.push(p); }
+  else { state.properties[editingPropertyIndex]=p; }
+  state.properties.sort((a,b)=>a.name.localeCompare(b.name,'ja')); saveProperties(); cancelPropertyEdit(); renderProperties();
+};
+
+$('saveVendorBtn').onclick=()=>{
+  const v={name:$('vendorName').value.trim(),person:$('vendorPerson').value.trim(),email:$('vendorEmail').value.trim(),phone:$('vendorPhone').value.trim()};
+  if(!v.name||!v.email){alert('会社名とメールアドレスを入力してください');return}
+  if(editingVendorIndex===null){ state.vendors.push(v); }
+  else { state.vendors[editingVendorIndex]=v; }
+  saveVendors(); cancelVendorEdit(); renderVendors(); generateMail();
+};
 $('vendorSelect').onchange=()=>{updateVendorDetail();generateMail();};
+
+$('exportMastersBtn').onclick=()=>{
+  const data={version:1,exportedAt:new Date().toISOString(),properties:state.properties,vendors:state.vendors};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`HANDOFF_マスター_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+$('importMastersInput').onchange=async e=>{
+  const f=e.target.files?.[0]; if(!f)return;
+  try{
+    const data=JSON.parse(await f.text());
+    if(!Array.isArray(data.properties)||!Array.isArray(data.vendors)) throw new Error('invalid');
+    if(!confirm('現在のマスターをバックアップ内容で置き換えますか？')){e.target.value='';return}
+    state.properties=data.properties; state.vendors=data.vendors; saveProperties(); saveVendors(); renderProperties(); renderProperties(); renderVendors(); generateMail();
+    alert('マスターを復元しました');
+  }catch(err){alert('バックアップファイルを読み込めませんでした');}
+  e.target.value='';
+};
 
 // 有坂不動産「貸室解約申出書」専用OCR
 const FORM_ZONES = [
@@ -286,4 +304,4 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPro
 $('installBtn').onclick=async()=>{if(deferredPrompt){deferredPrompt.prompt();deferredPrompt=null;$('installBtn').hidden=true}};
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
 
-loadSharedMasters();
+renderProperties(); renderVendors(); generateMail();

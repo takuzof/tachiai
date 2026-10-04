@@ -122,7 +122,8 @@
       <div class="section-head">
         <div>
           <div class="eyebrow">HANDOFF MASTER</div>
-          <h2>GitHub共通マスター</h2>
+          <h2>マスター管理</h2>
+          <div class="local-master-badge">この端末に保存</div>
         </div>
         <button value="close" class="ghost">閉じる</button>
       </div>
@@ -133,26 +134,34 @@
       </div>
 
       <section class="master-panel active" id="propertyMasterPanel">
-        <h3>物件マスター</h3>
-        <p class="master-note">GitHub上の <code>data/masters.json</code> を全端末で共通利用します。</p>
+        <h3>物件マスター</h3><p class="master-help">物件名と住所をこの端末に保存します。登録済みデータは編集・削除できます。</p>
+        <label>物件名<input id="masterPropertyName" placeholder="例：コンチェルト平塚"></label>
+        <label>住所<input id="masterPropertyAddress" placeholder="任意"></label>
         <div class="button-row">
-          <button type="button" class="primary" id="reloadMastersBtn1">最新マスターを再読込</button>
+          <button type="button" class="primary" id="savePropertyBtn">物件を登録</button><button type="button" class="secondary" id="cancelPropertyEditBtn" hidden>編集をキャンセル</button>
         </div>
         <div id="propertyMasterList" class="master-list"></div>
       </section>
 
       <section class="master-panel" id="vendorMasterPanel">
-        <h3>立会業者マスター</h3>
-        <p class="master-note">GitHub上の <code>data/masters.json</code> を全端末で共通利用します。</p>
+        <h3>立会業者マスター</h3><p class="master-help">会社名・担当者・メール・電話番号をこの端末に保存します。</p>
+        <label>会社名<input id="vendorName"></label>
+        <label>担当者名<input id="vendorPerson"></label>
+        <label>メールアドレス<input id="vendorEmail" type="email"></label>
+        <label>電話番号<input id="vendorPhone" type="tel" inputmode="tel"></label>
         <div class="button-row">
-          <button type="button" class="primary" id="reloadMastersBtn2">最新マスターを再読込</button>
+          <button type="button" class="primary" id="saveVendorBtn">業者を登録</button><button type="button" class="secondary" id="cancelVendorEditBtn" hidden>編集をキャンセル</button>
         </div>
         <div id="vendorList" class="vendor-list"></div>
       </section>
 
       <div class="master-backup">
-        <h3>マスターを変更するには</h3>
-        <p>GitHubリポジトリの <code>data/masters.json</code> を編集して保存（Commit）してください。保存後、この画面の「最新マスターを再読込」を押すと反映されます。</p>
+        <h3>マスターのバックアップ</h3>
+        <p>この端末に保存されている物件・業者マスターをJSONで保存／復元できます。機種変更や別端末への移行時に使用してください。</p>
+        <div class="button-row">
+          <button type="button" class="secondary" id="exportMastersBtn">バックアップ保存</button>
+          <label class="secondary master-import-label">バックアップ読込<input id="importMastersInput" type="file" accept="application/json" hidden></label>
+        </div>
       </div>
     </form>
   </dialog>
